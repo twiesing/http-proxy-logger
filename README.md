@@ -35,6 +35,8 @@ X-Cloud-Trace-Context: 83ac5937ae7ba8f3ef96ee941227b1b0
 }
 ```
 ## Build image
+This project is built with **Go 1.23**.
+
 `docker build -t stn1slv/http-proxy-logger .`
 ## Start
 `docker run --rm -it -p 8888:8888 -e PORT=8888 -e TARGET=http://demo7704619.mockable.io stn1slv/http-proxy-logger`
