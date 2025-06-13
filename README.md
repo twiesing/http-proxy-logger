@@ -1,5 +1,7 @@
 # HTTP proxy logger
-This is HTTP proxy which prints http requests and responses to console including http body.
+This is HTTP proxy which prints HTTP requests and responses to the console,
+including their bodies. Responses compressed with `gzip` or `deflate` are
+automatically decompressed in the logs for readability.
 For example:
 ```
 2021/05/05 03:50:44 ---REQUEST 3---

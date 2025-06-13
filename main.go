@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"compress/zlib"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 )
 
@@ -13,6 +18,27 @@ import (
 var reqCounter int32
 
 type DebugTransport struct{}
+
+func decodeBody(encoding string, body []byte) ([]byte, error) {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "gzip":
+		r, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		return io.ReadAll(r)
+	case "deflate":
+		r, err := zlib.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		return io.ReadAll(r)
+	default:
+		return body, nil
+	}
+}
 
 func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	counter := atomic.AddInt32(&reqCounter, 1)
@@ -27,14 +53,27 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	responseDump, err := httputil.DumpResponse(response, true)
+	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		// copying the response body did not work
+		return nil, err
+	}
+	// restore body for client
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	headerDump, err := httputil.DumpResponse(response, false)
+	if err != nil {
 		return nil, err
 	}
 
-	log.Printf("---RESPONSE %d---\n\n%s\n\n", counter, string(responseDump))
-	return response, err
+	decoded, err := decodeBody(response.Header.Get("Content-Encoding"), bodyBytes)
+	if err != nil {
+		decoded = bodyBytes
+	}
+
+	log.Printf("---RESPONSE %d---\n\n%s%s\n\n", counter, string(headerDump), string(decoded))
+	// restore body again for proxying
+	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	return response, nil
 }
 
 // Get env var or default
