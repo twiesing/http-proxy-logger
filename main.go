@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"flag"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +17,11 @@ import (
 
 // Request counter
 var reqCounter int32
+
+var logRequests = flag.Bool("requests", true, "log HTTP requests")
+var logResponses = flag.Bool("responses", true, "log HTTP responses")
+var cliTarget = flag.String("target", "", "upstream target URL (overrides TARGET)")
+var cliPort = flag.String("port", "", "listen port (overrides PORT)")
 
 type DebugTransport struct{}
 
@@ -55,7 +61,9 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		body = highlightBody(body, r.Header.Get("Content-Type"))
 	}
 	headers = append(highlightHeaders(headers, true), []byte("\r\n\r\n")...)
-	log.Printf("---REQUEST %d---\n\n%s%s\n\n", counter, string(headers), string(body))
+	if *logRequests {
+		log.Printf("---REQUEST %d---\n\n%s%s\n\n", counter, string(headers), string(body))
+	}
 
 	response, err := http.DefaultTransport.RoundTrip(r)
 	if err != nil {
@@ -81,7 +89,9 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	headerDump = append(highlightHeaders(bytes.TrimSuffix(headerDump, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
 
-	log.Printf("---RESPONSE %d---\n\n%s%s\n\n", counter, string(headerDump), string(decoded))
+	if *logResponses {
+		log.Printf("---RESPONSE %d---\n\n%s%s\n\n", counter, string(headerDump), string(decoded))
+	}
 	// restore body again for proxying
 	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	return response, nil
@@ -97,16 +107,23 @@ func getEnv(key, fallback string) string {
 
 // Get the port to listen on
 func getListenAddress() string {
-	port := getEnv("PORT", "1338")
+	port := *cliPort
+	if port == "" {
+		port = getEnv("PORT", "1338")
+	}
 	return ":" + port
 }
 
 func getTarget() string {
-	target := getEnv("TARGET", "http://example.com")
+	target := *cliTarget
+	if target == "" {
+		target = getEnv("TARGET", "http://example.com")
+	}
 	return target
 }
 
 func main() {
+	flag.Parse()
 	target, _ := url.Parse(getTarget())
 	log.Printf("Forwarding %s -> %s\n", getListenAddress(), target)
 

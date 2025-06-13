@@ -61,23 +61,29 @@ docker build -t stn1slv/http-proxy-logger .
 ## Running
 
 Set the `TARGET` environment variable to the upstream server and optionally
-`PORT` for the listen address. You can run the proxy either directly or inside
-a Docker container.
+`PORT` for the listen address. These values can also be provided with the
+`-target` and `-port` flags which override the environment.
+
+Use the `-requests` and `-responses` flags to control which messages are
+printed. Both default to `true`.
 
 ### Local execution
 
 ```bash
-TARGET=http://example.com PORT=8888 ./http-proxy-logger
+./http-proxy-logger -target http://example.com -port 8888 -responses=false
 ```
 
 ### Docker
 
 ```bash
 docker run --rm -it -p 8888:8888 \
-  -e PORT=8888 \
-  -e TARGET=http://demo7704619.mockable.io \
-  stn1slv/http-proxy-logger
+  stn1slv/http-proxy-logger \
+  -target http://demo7704619.mockable.io \
+  -port 8888
 ```
+Add `-responses=false` to log only requests or `-requests=false` to log only
+responses. Flags `-target` and `-port` may be used instead of the corresponding
+environment variables.
 
 The proxy will forward traffic to the target and log each request/response pair
 using the format shown above.

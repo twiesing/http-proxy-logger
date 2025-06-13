@@ -40,11 +40,19 @@ jobs:
           CGO_ENABLED: 0
           GO111MODULE: on
       
-      - name: Build for Windows
+      - name: Build for Windows (AMD64)
         run: go build -v -o http-proxy-logger-windows-amd64.exe
         env:
           GOOS: windows
           GOARCH: amd64
+          CGO_ENABLED: 0
+          GO111MODULE: on
+
+      - name: Build for Windows (ARM64)
+        run: go build -v -o http-proxy-logger-windows-arm64.exe
+        env:
+          GOOS: windows
+          GOARCH: arm64
           CGO_ENABLED: 0
           GO111MODULE: on
             
@@ -97,8 +105,8 @@ jobs:
           asset_name: http-proxy-logger-linux-arm64
           asset_content_type: application/octet-stream
 
-      - name: Upload Release Asset for Windows
-        id: upload-release-asset-windows
+      - name: Upload Release Asset for Windows (AMD64)
+        id: upload-release-asset-windows-amd64
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -108,6 +116,17 @@ jobs:
           asset_name: http-proxy-logger-windows-amd64.exe
           asset_content_type: application/octet-stream
       
+      - name: Upload Release Asset for Windows (ARM64)
+        id: upload-release-asset-windows-arm64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./http-proxy-logger-windows-arm64.exe
+          asset_name: http-proxy-logger-windows-arm64.exe
+          asset_content_type: application/octet-stream
+          
       - name: Upload Release Asset for MacOS (AMD64)
         id: upload-release-asset-macos-amd64
         uses: actions/upload-release-asset@v1
