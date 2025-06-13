@@ -25,7 +25,7 @@ jobs:
         run: go test -v ./...
         
       - name: Build for Linux (AMD64)
-        run: go build -v -o kafka-console-avro-tools-linux-amd64
+        run: go build -v -o http-proxy-logger-linux-amd64
         env:
           GOOS: linux
           GOARCH: amd64
@@ -33,7 +33,7 @@ jobs:
           GO111MODULE: on
 
       - name: Build for Linux (ARM64)
-        run: go build -v -o kafka-console-avro-tools-linux-arm64
+        run: go build -v -o http-proxy-logger-linux-arm64
         env:
           GOOS: linux
           GOARCH: arm64
@@ -41,7 +41,7 @@ jobs:
           GO111MODULE: on
       
       - name: Build for Windows
-        run: go build -v -o kafka-console-avro-tools-windows-amd64.exe
+        run: go build -v -o http-proxy-logger-windows-amd64.exe
         env:
           GOOS: windows
           GOARCH: amd64
@@ -49,7 +49,7 @@ jobs:
           GO111MODULE: on
             
       - name: Build for MacOS (AMD64)
-        run: go build -v -o kafka-console-avro-tools-darwin-amd64
+        run: go build -v -o http-proxy-logger-darwin-amd64
         env:
           GOOS: darwin
           GOARCH: amd64
@@ -57,7 +57,7 @@ jobs:
           GO111MODULE: on
       
       - name: Build for MacOS (ARM64)
-        run: go build -v -o kafka-console-avro-tools-darwin-arm64
+        run: go build -v -o http-proxy-logger-darwin-arm64
         env:
           GOOS: darwin
           GOARCH: arm64
@@ -82,8 +82,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kafka-console-avro-tools-linux-amd64
-          asset_name: kafka-console-avro-tools-linux-amd64
+          asset_path: ./http-proxy-logger-linux-amd64
+          asset_name: http-proxy-logger-linux-amd64
           asset_content_type: application/octet-stream
 
       - name: Upload Release Asset for Linux (ARM64)
@@ -93,8 +93,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kafka-console-avro-tools-linux-arm64
-          asset_name: kafka-console-avro-tools-linux-arm64
+          asset_path: ./http-proxy-logger-linux-arm64
+          asset_name: http-proxy-logger-linux-arm64
           asset_content_type: application/octet-stream
 
       - name: Upload Release Asset for Windows
@@ -104,8 +104,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kafka-console-avro-tools-windows-amd64.exe
-          asset_name: kafka-console-avro-tools-windows-amd64.exe
+          asset_path: ./http-proxy-logger-windows-amd64.exe
+          asset_name: http-proxy-logger-windows-amd64.exe
           asset_content_type: application/octet-stream
       
       - name: Upload Release Asset for MacOS (AMD64)
@@ -115,8 +115,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kafka-console-avro-tools-darwin-amd64
-          asset_name: kafka-console-avro-tools-darwin-amd64
+          asset_path: ./http-proxy-logger-darwin-amd64
+          asset_name: http-proxy-logger-darwin-amd64
           asset_content_type: application/octet-stream
 
       - name: Upload Release Asset for MacOS (ARM64)
@@ -126,6 +126,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./kafka-console-avro-tools-darwin-arm64
-          asset_name: kafka-console-avro-tools-darwin-arm64
+          asset_path: ./http-proxy-logger-darwin-arm64
+          asset_name: http-proxy-logger-darwin-arm64
           asset_content_type: application/octet-stream
