@@ -15,16 +15,20 @@ import (
 	"sync/atomic"
 )
 
-// Request counter
+// reqCounter is a global atomic counter for request/response pairs.
 var reqCounter int32
 
+// Command-line flags for controlling logging and proxy configuration.
 var logRequests = flag.Bool("requests", true, "log HTTP requests")
 var logResponses = flag.Bool("responses", true, "log HTTP responses")
 var cliTarget = flag.String("target", "", "upstream target URL (overrides TARGET)")
 var cliPort = flag.String("port", "", "listen port (overrides PORT)")
 
+// DebugTransport is a custom http.RoundTripper that logs requests and responses.
 type DebugTransport struct{}
 
+// decodeBody decompresses the body if the encoding is gzip or deflate.
+// Returns the decoded body or the original if no decoding is needed.
 func decodeBody(encoding string, body []byte) ([]byte, error) {
 	switch strings.ToLower(strings.TrimSpace(encoding)) {
 	case "gzip":
@@ -46,6 +50,8 @@ func decodeBody(encoding string, body []byte) ([]byte, error) {
 	}
 }
 
+// RoundTrip implements the http.RoundTripper interface.
+// It logs the outgoing request and incoming response with highlighted output.
 func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	counter := atomic.AddInt32(&reqCounter, 1)
 
@@ -97,7 +103,7 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return response, nil
 }
 
-// Get env var or default
+// getEnv returns the value of the environment variable or a fallback if not set.
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
@@ -105,7 +111,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-// Get the port to listen on
+// getListenAddress returns the address to listen on, using CLI flag, env, or default.
 func getListenAddress() string {
 	port := *cliPort
 	if port == "" {
@@ -114,6 +120,7 @@ func getListenAddress() string {
 	return ":" + port
 }
 
+// getTarget returns the upstream target URL, using CLI flag, env, or default.
 func getTarget() string {
 	target := *cliTarget
 	if target == "" {
@@ -122,6 +129,7 @@ func getTarget() string {
 	return target
 }
 
+// main is the entry point. It sets up the reverse proxy and starts the HTTP server.
 func main() {
 	flag.Parse()
 	target, _ := url.Parse(getTarget())
