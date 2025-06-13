@@ -1,8 +1,11 @@
-# HTTP proxy logger
-This is HTTP proxy which prints HTTP requests and responses to the console,
-including their bodies. Responses compressed with `gzip` or `deflate` are
-automatically decompressed in the logs for readability.
-For example:
+# HTTP Proxy Logger
+
+HTTP Proxy Logger is a small reverse proxy that prints incoming HTTP requests
+and outgoing responses to stdout. Bodies compressed with `gzip` or `deflate`
+are automatically decompressed in the logs so that you can easily inspect them.
+
+## Example output
+
 ```
 2021/05/05 03:50:44 ---REQUEST 3---
 
@@ -36,9 +39,47 @@ X-Cloud-Trace-Context: 83ac5937ae7ba8f3ef96ee941227b1b0
   "action": "updated"
 }
 ```
-## Build image
-This project is built with **Go 1.23**.
 
-`docker build -t stn1slv/http-proxy-logger .`
-## Start
-`docker run --rm -it -p 8888:8888 -e PORT=8888 -e TARGET=http://demo7704619.mockable.io stn1slv/http-proxy-logger`
+## Building
+
+The project requires **Go 1.23**.
+
+### Build a binary
+
+```bash
+go build -o http-proxy-logger
+```
+
+### Build a Docker image
+
+```bash
+docker build -t stn1slv/http-proxy-logger .
+```
+
+## Running
+
+Set the `TARGET` environment variable to the upstream server and optionally
+`PORT` for the listen address. You can run the proxy either directly or inside
+a Docker container.
+
+### Local execution
+
+```bash
+TARGET=http://example.com PORT=8888 ./http-proxy-logger
+```
+
+### Docker
+
+```bash
+docker run --rm -it -p 8888:8888 \
+  -e PORT=8888 \
+  -e TARGET=http://demo7704619.mockable.io \
+  stn1slv/http-proxy-logger
+```
+
+The proxy will forward traffic to the target and log each request/response pair
+using the format shown above.
+
+## License
+
+This project is licensed under the MIT License.
