@@ -3,6 +3,8 @@
 HTTP Proxy Logger is a small reverse proxy that prints incoming HTTP requests
 and outgoing responses to stdout. Bodies compressed with `gzip` or `deflate`
 are automatically decompressed in the logs so that you can easily inspect them.
+The output uses ANSI colors similar to `HTTPie`: request and response lines,
+header names, and JSON or XML bodies are highlighted for readability.
 
 ## Example output
 
