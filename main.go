@@ -47,7 +47,15 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("---REQUEST %d---\n\n%s\n\n", counter, string(requestDump))
+	headers := requestDump
+	var body []byte
+	if idx := bytes.Index(requestDump, []byte("\r\n\r\n")); idx != -1 {
+		headers = requestDump[:idx]
+		body = requestDump[idx+4:]
+		body = highlightBody(body, r.Header.Get("Content-Type"))
+	}
+	headers = append(highlightHeaders(headers, true), []byte("\r\n\r\n")...)
+	log.Printf("---REQUEST %d---\n\n%s%s\n\n", counter, string(headers), string(body))
 
 	response, err := http.DefaultTransport.RoundTrip(r)
 	if err != nil {
@@ -69,6 +77,9 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if err != nil {
 		decoded = bodyBytes
 	}
+	decoded = highlightBody(decoded, response.Header.Get("Content-Type"))
+
+	headerDump = append(highlightHeaders(bytes.TrimSuffix(headerDump, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
 
 	log.Printf("---RESPONSE %d---\n\n%s%s\n\n", counter, string(headerDump), string(decoded))
 	// restore body again for proxying
