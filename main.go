@@ -104,7 +104,7 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	headerDump = append(highlightHeaders(bytes.TrimSuffix(headerDump, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
 
 	if *logResponses {
-		line := colorResMarker + "--- RESPONSE " + strconv.Itoa(int(counter)) + " [" + response.Status + "] ---" + colorReset
+		line := colorResMarker + "--- RESPONSE " + strconv.Itoa(int(counter)) + " (" + response.Status + ") ---" + colorReset
 		log.Printf("%s %s\n\n%s%s\n\n", coloredTimeWithColor(time.Now(), colorResMarker), line, string(headerDump), string(decoded))
 	}
 	// restore body again for proxying
