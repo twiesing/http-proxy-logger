@@ -150,11 +150,29 @@ func main() {
 	proxy.Transport = DebugTransport{}
 
 	d := proxy.Director
-	proxy.Director = func(r *http.Request) {
-		d(r) // call default director
+    proxy.Director = func(r *http.Request) {
+        d(r)
+        r.Host = target.Host
 
-		r.Host = target.Host // set Host header as expected by target
-	}
+        if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+            body, err := io.ReadAll(r.Body)
+            if err == nil {
+                var m map[string]interface{}
+                if json.Unmarshal(body, &m) == nil {
+                    if val, ok := m["stream"]; ok && val == true {
+                        m["stream"] = false
+                        newBody, _ := json.Marshal(m)
+                        r.Body = io.NopCloser(bytes.NewReader(newBody))
+                        r.ContentLength = int64(len(newBody))
+                        r.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
+                        return
+                    }
+                }
+                // Body zurücksetzen, falls kein stream==true
+                r.Body = io.NopCloser(bytes.NewReader(body))
+            }
+        }
+    }
 
 	if err := http.ListenAndServe(getListenAddress(), proxy); err != nil {
 		panic(err)
