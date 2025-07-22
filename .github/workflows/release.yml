@@ -1,9 +1,8 @@
 name: Build and Push Docker Image (ARM64 native)
 
 on:
-  push:
-    tags:
-      - 'v*'
+  push:     # bei jedem Commit auf jedem Branch oder Tag
+  workflow_dispatch:  # manuell startbar
 
 jobs:
   build-and-push:
