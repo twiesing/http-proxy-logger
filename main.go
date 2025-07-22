@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"encoding/json"
 )
 
 // reqCounter is a global atomic counter for request/response pairs.
