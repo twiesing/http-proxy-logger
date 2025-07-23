@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"encoding/json"
 	"flag"
 	"io"
 	"log"
@@ -15,25 +17,24 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"encoding/json"
 )
 
-// reqCounter is a global atomic counter for request/response pairs.
+// reqCounter zählt fortlaufend alle Request/Response-Paare.
 var reqCounter int32
 
-// Command-line flags for controlling logging and proxy configuration.
-var logRequests = flag.Bool("requests", true, "log HTTP requests")
-var logResponses = flag.Bool("responses", true, "log HTTP responses")
-var cliTarget = flag.String("target", "", "upstream target URL (overrides TARGET)")
-var cliPort = flag.String("port", "", "listen port (overrides PORT)")
+// CLI-Flags
+var (
+	logRequests  = flag.Bool("requests", true, "log HTTP requests")
+	logResponses = flag.Bool("responses", true, "log HTTP responses")
+	cliTarget    = flag.String("target", "", "upstream target URL (overrides TARGET)")
+	cliPort      = flag.String("port", "", "listen port (overrides PORT)")
+)
 
-// DebugTransport is a custom http.RoundTripper that logs requests and responses.
+// DebugTransport loggt Request und Response (mit Dekompression und Hervorhebung).
 type DebugTransport struct{}
 
-// decodeBody decompresses the body if the encoding is gzip or deflate.
-// Returns the decoded body or the original if no decoding is needed.
-func decodeBody(encoding string, body []byte) ([]byte, error) {
-	switch strings.ToLower(strings.TrimSpace(encoding)) {
+func decodeBody(enc string, body []byte) ([]byte, error) {
+	switch strings.ToLower(strings.TrimSpace(enc)) {
 	case "gzip":
 		r, err := gzip.NewReader(bytes.NewReader(body))
 		if err != nil {
@@ -53,75 +54,59 @@ func decodeBody(encoding string, body []byte) ([]byte, error) {
 	}
 }
 
-// coloredTimeWithColor returns the formatted time string wrapped in the given color.
-func coloredTimeWithColor(t time.Time, color string) string {
-	return wrapColor("["+t.Format("2006/01/02 15:04:05")+"]", color)
-}
-
-// RoundTrip implements the http.RoundTripper interface.
-// It logs the outgoing request and incoming response with highlighted output.
 func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	counter := atomic.AddInt32(&reqCounter, 1)
 
-	requestDump, err := httputil.DumpRequestOut(r, true)
+	// Request-Dump
+	reqDump, err := httputil.DumpRequestOut(r, true)
 	if err != nil {
 		return nil, err
 	}
-	headers := requestDump
-	var body []byte
-	if idx := bytes.Index(requestDump, []byte("\r\n\r\n")); idx != -1 {
-		headers = requestDump[:idx]
-		body = requestDump[idx+4:]
-		body = highlightBody(body, r.Header.Get("Content-Type"))
+	var reqBody []byte
+	headers := reqDump
+	if idx := bytes.Index(reqDump, []byte("\r\n\r\n")); idx != -1 {
+		headers = reqDump[:idx]
+		reqBody = reqDump[idx+4:]
+		reqBody = highlightBody(reqBody, r.Header.Get("Content-Type"))
 	}
 	headers = append(highlightHeaders(headers, true), []byte("\r\n\r\n")...)
 	if *logRequests {
-		line := colorReqMarker + "--- REQUEST " + strconv.Itoa(int(counter)) + " ---" + colorReset
-		log.Printf("%s %s\n\n%s%s\n\n", coloredTimeWithColor(time.Now(), colorReqMarker), line, string(headers), string(body))
+		log.Printf("[REQUEST %d]\n%s%s\n", counter, headers, reqBody)
 	}
 
-	response, err := http.DefaultTransport.RoundTrip(r)
-	if err != nil {
-		return nil, err
-	}
-	bodyBytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
-	}
-	// restore body for client
-	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-	headerDump, err := httputil.DumpResponse(response, false)
+	// Weiterleiten an Upstream
+	resp, err := http.DefaultTransport.RoundTrip(r)
 	if err != nil {
 		return nil, err
 	}
 
-	decoded, err := decodeBody(response.Header.Get("Content-Encoding"), bodyBytes)
+	// Response-Dump
+	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		decoded = bodyBytes
+		return nil, err
 	}
-	decoded = highlightBody(decoded, response.Header.Get("Content-Type"))
+	resp.Body = io.NopCloser(bytes.NewReader(respBytes))
 
+	headerDump, _ := httputil.DumpResponse(resp, false)
+	decoded, _ := decodeBody(resp.Header.Get("Content-Encoding"), respBytes)
+	decoded = highlightBody(decoded, resp.Header.Get("Content-Type"))
 	headerDump = append(highlightHeaders(bytes.TrimSuffix(headerDump, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
 
 	if *logResponses {
-		line := colorResMarker + "--- RESPONSE " + strconv.Itoa(int(counter)) + " (" + response.Status + ") ---" + colorReset
-		log.Printf("%s %s\n\n%s%s\n\n", coloredTimeWithColor(time.Now(), colorResMarker), line, string(headerDump), string(decoded))
+		log.Printf("[RESPONSE %d: %s]\n%s%s\n", counter, resp.Status, headerDump, decoded)
 	}
-	// restore body again for proxying
-	response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	return response, nil
+
+	resp.Body = io.NopCloser(bytes.NewReader(respBytes))
+	return resp, nil
 }
 
-// getEnv returns the value of the environment variable or a fallback if not set.
 func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
+	if v, ok := os.LookupEnv(key); ok {
+		return v
 	}
 	return fallback
 }
 
-// getListenAddress returns the address to listen on, using CLI flag, env, or default.
 func getListenAddress() string {
 	port := *cliPort
 	if port == "" {
@@ -130,52 +115,107 @@ func getListenAddress() string {
 	return ":" + port
 }
 
-// getTarget returns the upstream target URL, using CLI flag, env, or default.
 func getTarget() string {
-	target := *cliTarget
-	if target == "" {
-		target = getEnv("TARGET", "http://example.com")
+	t := *cliTarget
+	if t == "" {
+		t = getEnv("TARGET", "http://example.com")
 	}
-	return target
+	return t
 }
 
-// main is the entry point. It sets up the reverse proxy and starts the HTTP server.
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	target, _ := url.Parse(getTarget())
-	log.Printf("%s %s -> %s\n", coloredTime(time.Now()), getListenAddress(), target)
 
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	targetURL, _ := url.Parse(getTarget())
+	log.Printf("Proxy listening on %s → %s\n", getListenAddress(), targetURL)
 
-	proxy.Transport = DebugTransport{}
+	// Transport mit Debug-Logging
+	transport := DebugTransport{}
 
-	d := proxy.Director
-    proxy.Director = func(r *http.Request) {
-        d(r)
-        r.Host = target.Host
+	// SingleHost-Proxy bleibt als Basis, aber wir verwenden eigenen Handler
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Original-Body einlesen
+		origBody, _ := io.ReadAll(r.Body)
+		r.Body.Close()
 
-        if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
-            body, err := io.ReadAll(r.Body)
-            if err == nil {
-                var m map[string]interface{}
-                if json.Unmarshal(body, &m) == nil {
-                    if val, ok := m["stream"]; ok && val == true {
-                        m["stream"] = false
-                        newBody, _ := json.Marshal(m)
-                        r.Body = io.NopCloser(bytes.NewReader(newBody))
-                        r.ContentLength = int64(len(newBody))
-                        r.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
-                        return
-                    }
-                }
-                // Body zurücksetzen, falls kein stream==true
-                r.Body = io.NopCloser(bytes.NewReader(body))
-            }
-        }
-    }
+		// 1) Erst-Call mit stream=true
+		resp, err := doUpstreamCall(r, origBody, true, transport)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
 
-	if err := http.ListenAndServe(getListenAddress(), proxy); err != nil {
-		panic(err)
+		// 2) Prüfen: kam jemals delta.content?
+		if isEmptyStream(resp.Body) {
+			resp.Body.Close()
+			// 3) Fallback: stream=false
+			resp, err = doUpstreamCall(r, origBody, false, transport)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
+		}
+
+		// 4) Antwort 1:1 weiterleiten
+		copyResponse(w, resp)
+	})
+
+	if err := http.ListenAndServe(getListenAddress(), nil); err != nil {
+		log.Fatal(err)
 	}
+}
+
+// doUpstreamCall dupliziert das Request-JSON, setzt den stream-Flag und schickt es upstream.
+func doUpstreamCall(origReq *http.Request, origBody []byte, useStream bool, transport http.RoundTripper) (*http.Response, error) {
+	var m map[string]interface{}
+	if err := json.Unmarshal(origBody, &m); err != nil {
+		return nil, err
+	}
+	m["stream"] = useStream
+	newBody, _ := json.Marshal(m)
+
+	req := origReq.Clone(origReq.Context())
+	req.Body = io.NopCloser(bytes.NewReader(newBody))
+	req.ContentLength = int64(len(newBody))
+	req.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
+
+	return transport.RoundTrip(req)
+}
+
+// isEmptyStream scannt die ersten SSE-Chunks auf non-empty delta.content.
+func isEmptyStream(rc io.ReadCloser) bool {
+	defer rc.Close()
+	scanner := bufio.NewScanner(rc)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "data:") {
+			payload := strings.TrimPrefix(line, "data:")
+			var chunk struct {
+				Choices []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal([]byte(payload), &chunk); err == nil {
+				if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// copyResponse leitet Header und Body der Upstream-Response an den Client weiter.
+func copyResponse(w http.ResponseWriter, resp *http.Response) {
+	for k, vals := range resp.Header {
+		for _, v := range vals {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+	resp.Body.Close()
 }
