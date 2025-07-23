@@ -54,16 +54,6 @@ func decodeBody(enc string, body []byte) ([]byte, error) {
 	}
 }
 
-// highlightHeaders und highlightBody sind Platzhalter für deine Hervorhebungs-Logik.
-func highlightHeaders(data []byte, isRequest bool) []byte {
-	// TODO: Implementiere Hervorhebung der Header
-	return data
-}
-
-func highlightBody(body []byte, contentType string) []byte {
-	// TODO: Implementiere Hervorhebung des Bodys je nach Content-Type
-	return body
-}
 
 func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	counter := atomic.AddInt32(&reqCounter, 1)
@@ -224,6 +214,6 @@ func copyResponse(w http.ResponseWriter, resp *http.Response) {
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	iо.Copy(w, resp.Body)
+	io.Copy(w, resp.Body)
 	resp.Body.Close()
 }
