@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 // reqCounter zählt fortlaufend alle Request/Response-Paare.
@@ -53,6 +54,17 @@ func decodeBody(enc string, body []byte) ([]byte, error) {
 	}
 }
 
+// highlightHeaders und highlightBody sind Platzhalter für deine Hervorhebungs-Logik.
+func highlightHeaders(data []byte, isRequest bool) []byte {
+	// TODO: Implementiere Hervorhebung der Header
+	return data
+}
+
+func highlightBody(body []byte, contentType string) []byte {
+	// TODO: Implementiere Hervorhebung des Bodys je nach Content-Type
+	return body
+}
+
 func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	counter := atomic.AddInt32(&reqCounter, 1)
 
@@ -70,7 +82,7 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	headers = append(highlightHeaders(headers, true), []byte("\r\n\r\n")...)
 	if *logRequests {
-		log.Printf("[REQUEST %d]\n%s%s\n", counter, headers, reqBody)
+		log.Printf("[%s REQUEST %d]\n%s%s\n", time.Now().Format("2006/01/02 15:04:05"), counter, headers, reqBody)
 	}
 
 	// Weiterleiten an Upstream
@@ -92,7 +104,7 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	headersResp = append(highlightHeaders(bytes.TrimSuffix(headersResp, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
 
 	if *logResponses {
-		log.Printf("[RESPONSE %d: %s]\n%s%s\n", counter, resp.Status, headersResp, decoded)
+		log.Printf("[%s RESPONSE %d: %s]\n%s%s\n", time.Now().Format("2006/01/02 15:04:05"), counter, resp.Status, headersResp, decoded)
 	}
 
 	resp.Body = io.NopCloser(bytes.NewReader(respBytes))
@@ -193,4 +205,25 @@ func isEmptyStream(rc io.ReadCloser) bool {
 						Content string `json:"content"`
 					} `json:"delta"`
 				} `json:"choices"`
-		
+			}
+			if err := json.Unmarshal([]byte(payload), &chunk); err == nil {
+				if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// copyResponse leitet Header und Body der Upstream-Response an den Client weiter.
+func copyResponse(w http.ResponseWriter, resp *http.Response) {
+	for k, vals := range resp.Header {
+		for _, v := range vals {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	iо.Copy(w, resp.Body)
+	resp.Body.Close()
+}
