@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-	"time"
 )
 
 // reqCounter zählt fortlaufend alle Request/Response-Paare.
@@ -87,13 +86,13 @@ func (DebugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(respBytes))
 
-	headerDump, _ := httputil.DumpResponse(resp, false)
+	headersResp, _ := httputil.DumpResponse(resp, false)
 	decoded, _ := decodeBody(resp.Header.Get("Content-Encoding"), respBytes)
 	decoded = highlightBody(decoded, resp.Header.Get("Content-Type"))
-	headerDump = append(highlightHeaders(bytes.TrimSuffix(headerDump, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
+	headersResp = append(highlightHeaders(bytes.TrimSuffix(headersResp, []byte("\r\n\r\n")), false), []byte("\r\n\r\n")...)
 
 	if *logResponses {
-		log.Printf("[RESPONSE %d: %s]\n%s%s\n", counter, resp.Status, headerDump, decoded)
+		log.Printf("[RESPONSE %d: %s]\n%s%s\n", counter, resp.Status, headersResp, decoded)
 	}
 
 	resp.Body = io.NopCloser(bytes.NewReader(respBytes))
@@ -130,12 +129,9 @@ func main() {
 	targetURL, _ := url.Parse(getTarget())
 	log.Printf("Proxy listening on %s → %s\n", getListenAddress(), targetURL)
 
-	// Transport mit Debug-Logging
 	transport := DebugTransport{}
 
-	// SingleHost-Proxy bleibt als Basis, aber wir verwenden eigenen Handler
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Original-Body einlesen
 		origBody, _ := io.ReadAll(r.Body)
 		r.Body.Close()
 
@@ -197,25 +193,4 @@ func isEmptyStream(rc io.ReadCloser) bool {
 						Content string `json:"content"`
 					} `json:"delta"`
 				} `json:"choices"`
-			}
-			if err := json.Unmarshal([]byte(payload), &chunk); err == nil {
-				if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-					return false
-				}
-			}
-		}
-	}
-	return true
-}
-
-// copyResponse leitet Header und Body der Upstream-Response an den Client weiter.
-func copyResponse(w http.ResponseWriter, resp *http.Response) {
-	for k, vals := range resp.Header {
-		for _, v := range vals {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
-	resp.Body.Close()
-}
+		
